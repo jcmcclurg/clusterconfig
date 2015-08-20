@@ -1,0 +1,283 @@
+#!/usr/bin/perl
+
+# Copyright (C) 2007-2015 X2Go Project - http://wiki.x2go.org
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the
+# Free Software Foundation, Inc.,
+# 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
+#
+# Copyright (C) 2007-2015 Oleksandr Shneyder <oleksandr.shneyder@obviously-nice.de>
+# Copyright (C) 2007-2015 Heinz-Markus Graesing <heinz-m.graesing@obviously-nice.de>
+
+use strict;
+use Sys::Hostname;
+use Sys::Syslog qw( :standard :macros );
+use POSIX;
+
+
+my $x2go_lib_path=`x2gopath libexec`;
+use lib `x2gopath lib`;
+use x2gologlevel;
+
+openlog($0,'cons,pid','user');
+setlogmask( LOG_UPTO(x2gologlevel()) );
+
+
+sub check_pid
+{
+	my $pid=shift;
+	my $sess=shift;
+	my $sec=shift;
+	if ($sec < 30)
+	{
+		return 1;
+	}
+	open (F,"</proc/$pid/cmdline") or return 0;
+	my $text=<F>;
+	close (F);
+	if ($text =~ m/$sess/)
+	{
+		return 1;
+	}
+	return 0;
+}
+
+sub has_terminated
+{
+	my $state=get_agent_state(@_);
+	if(($state eq 'TERMINATING')||($state eq 'TERMINATED'))
+	{
+		return 1;
+	}
+	return 0;
+}
+
+
+sub is_suspended
+{
+	my $state=get_agent_state(@_);
+	if(($state eq 'SUSPENDING')||($state eq 'SUSPENDED'))
+	{
+		return 1;
+	}
+	return 0;
+}
+
+
+sub is_running
+{
+    my $state=get_agent_state(@_);
+    if(($state eq 'STARTING')||($state eq 'RESUMING')||($state eq 'RUNNING'))
+    {
+	return 1;
+    }
+    return 0;
+}
+
+sub get_agent_state
+{
+	my $sess=@_[0];
+	my $user;
+
+	if ( $sess =~ m/.*-[0-9]{2,}-[0-9]{10,}_stS(0|1)XSHAD.*XSHADPP.*/ ) {
+		my $shadow_user = $sess;
+		$shadow_user =~ s/.*XSHAD(.*)XSHADPP.*/$1/;
+		$user = $shadow_user;
+	} else {
+		$user=@_[1];
+	}
+
+	my $state;
+	my $stateFile = "/tmp/.x2go-".$user."/C-".$sess."/state";
+	if (! -e $stateFile )
+	{
+		syslog('warning', "$sess: state file for this session does not exist: $stateFile (this can be ignored during session startups)");
+		$state = "UNKNOWN";
+	}
+	else
+	{
+		open(F,"<$stateFile");
+		$state=<F>;
+		close(F);
+	}
+	return $state;
+}
+
+
+sub catch_term
+{
+	unlink("/var/run/x2goserver.pid");
+	exit;
+}
+
+my $uname;
+my $serv = hostname;
+my $pid = fork();
+if (not defined $pid) 
+{
+	print "resources not avilable.\n";
+}
+elsif ($pid != 0) 
+{
+	open (F,">/var/run/x2goserver.pid");
+	print F "$pid\n";
+	close(F);
+}
+elsif ($pid == 0 )
+{
+	# close any open file descriptor left open by our parent before the fork
+	my $fd;
+	for (glob "/proc/$$/fd/*") {
+		if ( ! -e $_ ) { next; }
+		if ($_ =~ m/\/proc\/\d+\/fd\/(\d+)/) {
+			$fd = $1;
+			if ( $fd < 3 ) { next; }
+			if (! POSIX::close($fd)) {
+				syslog('warning', "Error Closing $_: $!");
+			}
+		}
+	}
+
+	# redirect stdin, stdout and stderr
+	open *STDIN, q{<}, '/dev/null';
+	open *STDOUT, q{>>}, '/dev/null';
+	open *STDERR, q{>>}, '/dev/null';
+
+	$SIG{TERM}=\&catch_term;
+	$SIG{CHLD} = sub { wait };
+
+	my %remembered_sessions_status = ();
+	my %remembered_sessions_since = ();
+
+	while(sleep 3600)
+	{
+		my $outp=`$x2go_lib_path/x2golistsessions_sql $serv 2>/dev/null`;
+		my @outp=split("\n","$outp");
+
+		# forget earlier remembered blocked sessions
+		while ( my ($session, $remembered_since) = each(%remembered_sessions_since) )
+		{
+			if (! join(',', @outp)=~m/$session/)
+			{
+				delete $remembered_sessions_status{$session};
+				delete $remembered_sessions_since{$session};
+			}
+		}
+
+		for (my $i=0;$i<@outp;$i++)
+		{
+			my @sinfo=split('\\|',"@outp[$i]");
+
+                        # clean up invalid sessions from the session database
+                        if ( ( ! @sinfo[0] ) && ( $remembered_sessions_since{ @sinfo[1] } ge 10 ) )
+                        {
+                                dbsys_rmsessionsroot(@sinfo[1]);
+                                next;
+                        }
+
+			if (defined $remembered_sessions_since{ @sinfo[1] } && ($remembered_sessions_status{ @sinfo[1] } =~m/@sinfo[4]/ ))
+			{
+				$remembered_sessions_since{ @sinfo[1] } += 2;
+			} else {
+				$remembered_sessions_status{ @sinfo[1] } = @sinfo[4];
+				$remembered_sessions_since{ @sinfo[1] } = 0;
+			}
+
+			#print @sinfo[1], ': ', $remembered_sessions_since{@sinfo[1]},' ',$remembered_sessions_status{@sinfo[1]},"\n";
+
+			if (@sinfo[4]eq 'F')
+			{
+				syslog('debug', "@sinfo[1] is blocked");
+				if ($remembered_sessions_since{@sinfo[1]} ge 20)
+				{
+					# send SIGKILL to dangling X-server processes
+					syslog('warning', "@sinfo[1]: found stale X-server process (@sinfo[0]), sending SIGKILL");
+					system("kill", "-9", "@sinfo[0]");
+					delete $remembered_sessions_since{@sinfo[1]};
+				}
+				my $display = @sinfo[2];
+				if (-S "/tmp/.X11-unix/X$display") {
+					# remove the NX-X11 socket file (as the agent will not have managed after a kill -9)
+					syslog('warning', "@sinfo[1], pid @sinfo[0] cleaning up stale X11 socket file: /tmp/.X11-unix/X$display");
+					unlink("/tmp/.X11-unix/X$display");
+				}
+				if (-e "/tmp/.X$display-lock") {
+					# remove the NX-X11 lock file (as the agent will not have managed after a kill -9)
+					syslog('warning', "@sinfo[1], pid @sinfo[0] cleaning up stale X11 lock file: /tmp/.X$display-lock");
+					unlink("/tmp/.X$display-lock");
+				}
+				syslog('debug', "@sinfo[1]: unmounting all shares");
+				system( "su", "@sinfo[11]", "-s", "/bin/sh", "-c", "export HOSTNAME && x2goumount-session @sinfo[1]");
+				#remove port forwarding
+				system("su", "@sinfo[11]", "-s", "/bin/sh", "-c", "$x2go_lib_path/x2gormforward @sinfo[1]");
+			}
+			elsif (! check_pid (@sinfo[0],@sinfo[1],@sinfo[12]))
+			{
+				system("su", "@sinfo[11]", "-s", "/bin/sh", "-c", "$x2go_lib_path/x2gochangestatus 'F' @sinfo[1]");
+				my $display = @sinfo[2];
+				if (-S "/tmp/.X11-unix/X$display") {
+					# remove the NX-X11 socket file (we don't know how the agent disappeared,
+					# someone might have shot it with kill -9)
+					syslog('warning', "@sinfo[1], pid @sinfo[0] cleaning up stale X11 socket file: /tmp/.X11-unix/X$display");
+					unlink("/tmp/.X11-unix/X$display");
+				}
+				if (-e "/tmp/.X$display-lock") {
+					# remove the NX-X11 lock file (we don't know how the agent disappeared,
+					# someone might have shot it with kill -9)
+					syslog('warning', "@sinfo[1], pid @sinfo[0] cleaning up stale X11 lock file: /tmp/.X$display-lock");
+					unlink("/tmp/.X$display-lock");
+				}				syslog('debug', "@sinfo[1], pid @sinfo[0] does not exist, changing status from @sinfo[4] to F");
+				syslog('debug', "@sinfo[1]: unmounting all shares");
+				system("su", "@sinfo[11]", "-s", "/bin/sh", "-c", "export HOSTNAME && x2goumount-session @sinfo[1]");
+			}
+			else
+			{
+				if (@sinfo[4] eq 'R')
+				{
+					if (is_suspended(@sinfo[1],@sinfo[11]))
+					{
+						system("su", "@sinfo[11]", "-s", "/bin/sh", "-c", "$x2go_lib_path/x2gochangestatus S @sinfo[1]");
+						syslog('debug', "@sinfo[1] is suspended, changing status from @sinfo[4] to S");
+						syslog('debug', "@sinfo[1]: unmounting all shares");
+						system("su", "@sinfo[11]", "-s", "/bin/sh", "-c", "export HOSTNAME && x2goumount-session @sinfo[1]");
+						#remove port forwarding
+						system("su", "@sinfo[11]", "-s", "/bin/sh", "-c", "$x2go_lib_path/x2gormforward @sinfo[1]");
+					}
+				}
+				if (@sinfo[4] eq 'S')
+				{
+					if (is_running(@sinfo[1],@sinfo[11]))
+					{
+						syslog('debug', "@sinfo[1]: unmounting all shares");
+						system("su", "@sinfo[11]", "-s", "/bin/sh", "-c", "export HOSTNAME && x2goumount-session @sinfo[1]");
+						system("su", "@sinfo[11]", "-s", "/bin/sh", "-c", "x2gosuspend-session @sinfo[1]");
+						syslog('debug', "@sinfo[1] was found running and has now been suspended");
+					}
+				}
+				if (@sinfo[4] eq 'T')
+				{
+					if (!has_terminated(@sinfo[1],@sinfo[11]))
+					{
+						syslog('debug', "@sinfo[1]: unmounting all shares");
+						system("su", "@sinfo[11]", "-s", "/bin/sh", "-c", "export HOSTNAME && x2goumount-session @sinfo[1]");
+						system("su", "@sinfo[11]", "-s", "/bin/sh", "-c", "x2goterminate-session @sinfo[1]");
+						syslog('debug', "@sinfo[1] has been requested for termination via the session DB");
+						#remove port forwarding
+						system("su", "@sinfo[11]", "-s", "/bin/sh", "-c", "$x2go_lib_path/x2gormforward @sinfo[1]");
+					}
+				}
+			}
+		}
+	}
+}

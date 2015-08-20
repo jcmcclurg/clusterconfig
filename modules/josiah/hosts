@@ -1,0 +1,13 @@
+127.0.0.1	localhost
+#127.0.0.1	jjpowerserver.dynamic.uiowa.edu	jjpowerserver localhost
+
+# The following lines are desirable for IPv6 capable hosts
+::1     localhost ip6-localhost ip6-loopback
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+
+192.168.1.100 jjpowerserver.jjcluster.net jjpowerserver puppet
+192.168.1.101 jjpowerserver1.jjcluster.net jjpowerserver1
+192.168.1.102 jjpowerserver2.jjcluster.net jjpowerserver2
+192.168.1.103 jjpowerserver3.jjcluster.net jjpowerserver3
+192.168.1.104 jjpowerserver4.jjcluster.net jjpowerserver4
