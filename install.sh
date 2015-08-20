@@ -1,4 +1,8 @@
-git clone git://github.com/wikimedia/puppet-cdh.git /etc/puppet/modules/cdh
-puppet module install puppetlabs-apt
-puppet module install puppetlabs-stlib
-puppet module install puppetlabs-vcsrepo
+dir=$(dirname $0)
+pdir=/etc/puppet
+
+echo "Installing custom site files to $pdir"
+sudo mkdir -p $pdir/modules/josiah
+sudo mkdir -p $pdir/manifests
+sudo cp $dir/modules/josiah/* $pdir/modules/josiah
+sudo cp $dir/manifests/* $pdir/manifests
