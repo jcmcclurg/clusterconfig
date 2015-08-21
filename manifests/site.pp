@@ -3,11 +3,13 @@ class my::ubuntu {
 		ensure => present,
 	}
 
+	/*
 	file { '/etc/dhcp/dhclient.conf':
 		ensure => file,
 		source => 'puppet:///modules/josiah/dhclient.conf',
 		require => Package['isc-dhcp-client'],
 	}
+	*/
 
 	file { '/etc/environment':
 		ensure => file,
@@ -15,10 +17,13 @@ class my::ubuntu {
 	}
 }
 
+
 class my::hadoop inherits my::ubuntu {
+	/*
 	include apt
 
-	apt::source {
+	# We need Cloudera's repositories to be installed before we can use the cdh::hadoop module
+	apt::source { 'cloudera-apt':
 		comment => "Cloudera's distribution for Hadoop",
 		architecture => 'amd64',
 		key => {
@@ -32,6 +37,7 @@ class my::hadoop inherits my::ubuntu {
 		release => 'trusty-cdh5',
 		repos => 'contrib'
 	}
+	*/
 
 	class { 'cdh::hadoop':
 		# Logical Hadoop cluster name.
@@ -41,15 +47,25 @@ class my::hadoop inherits my::ubuntu {
 		namenode_hosts	 => ['jjpowerserver.jjcluster.net'],
 		datanode_mounts		=> ['/var/lib/hadoop/data/mount1'],
 		dfs_name_dir			=> '/var/lib/hadoop/name',
-		require => [Package['zookeeper'], apt::Source['cloudera-key']]
+		#require => apt::Source['cloudera-apt']
 	}
 
+	# We need mahout on all the nodes to run the HiBench demos
 	package { 'mahout': ensure => present }
+
+	/*
+	# We need zookeeper for some reason. I'm not really sure what it does
+	package { 'zookeeper':
+		ensure => present,
+		require => apt::Source['cloudera-apt'],
+	}
+	*/
 }
 
 class my::hadoop::master inherits my::hadoop {
 	include cdh::hadoop::master
 
+	/*
 	include apt
 
 	#########################################################
@@ -81,6 +97,7 @@ class my::hadoop::master inherits my::hadoop {
 		excludes => '/opt/HiBench-CDH5/bin/hibench-config.sh',
 	}
 
+	# We need to make sure the configuration script is set up right.
 	file { '/opt/HiBench-CDH5/bin/hibench-config.sh':
 		ensure => file,
 		source => 'puppet:///modules/josiah/hibench-config.sh',
@@ -88,6 +105,7 @@ class my::hadoop::master inherits my::hadoop {
 		require => Vcsrepo['/opt/HiBench-CDH5'],
 	}
 
+	# We need to make sure all the scripts are runnable.
 	file { [	'/opt/HiBench-CDH5/TestDFSIO/bin/read.sh',
 				'/opt/HiBench-CDH5/TestDFSIO/bin/run.sh',
 				'/opt/HiBench-CDH5/TestDFSIO/bin/write.sh',
@@ -150,16 +168,18 @@ class my::hadoop::master inherits my::hadoop {
 		revision => 'release',
 		require => Package['ant'],
 	}
+	*/
+	package { 'ant': ensure => present, }
 }
 
 class my::hadoop::worker inherits my::hadoop {
 	include cdh::hadoop::worker
 }
 
-node 'jjpowerserver1.jjcluster.net', 'jjpowerserver2.jjcluster.net', 'jjpowerserver3.jjcluster.net', 'jjpowerserver4.jjcluster.net' {
-	include my::hadoop::worker
+node 'jjpowerserver' {
+	include my::hadoop::master
 }
 
-node 'jjpowerserver.jjcluster.net' {
-	include my::hadoop::master
+node 'jjpowerserver1.jjcluster.net', 'jjpowerserver2.jjcluster.net', 'jjpowerserver3.jjcluster.net', 'jjpowerserver4.jjcluster.net' {
+	include my::hadoop::worker
 }
