@@ -3,13 +3,11 @@ class my::ubuntu {
 		ensure => present,
 	}
 
-	/*
 	file { '/etc/dhcp/dhclient.conf':
 		ensure => file,
 		source => 'puppet:///modules/josiah/dhclient.conf',
 		require => Package['isc-dhcp-client'],
 	}
-	*/
 
 	file { '/etc/environment':
 		ensure => file,
@@ -19,7 +17,6 @@ class my::ubuntu {
 
 
 class my::hadoop inherits my::ubuntu {
-	/*
 	include apt
 
 	# We need Cloudera's repositories to be installed before we can use the cdh::hadoop module
@@ -27,6 +24,7 @@ class my::hadoop inherits my::ubuntu {
 		comment => "Cloudera's distribution for Hadoop",
 		architecture => 'amd64',
 		key => {
+			'id' => 'F36A89E33CC1BD0F71079007327574EE02A818DD',
 			'source' => 'http://archive.cloudera.com/cdh5/ubuntu/trusty/amd64/cdh/archive.key',
 		},
 		include => {
@@ -35,9 +33,9 @@ class my::hadoop inherits my::ubuntu {
 		},
 		location => 'http://archive.cloudera.com/cdh5/ubuntu/trusty/amd64/cdh',
 		release => 'trusty-cdh5',
-		repos => 'contrib'
+		repos => 'contrib',
+		before => [Class['cdh::hadoop'],Package['zookeeper']],
 	}
-	*/
 
 	class { 'cdh::hadoop':
 		# Logical Hadoop cluster name.
@@ -47,39 +45,41 @@ class my::hadoop inherits my::ubuntu {
 		namenode_hosts	 => ['jjpowerserver.jjcluster.net'],
 		datanode_mounts		=> ['/var/lib/hadoop/data/mount1'],
 		dfs_name_dir			=> '/var/lib/hadoop/name',
-		#require => apt::Source['cloudera-apt']
 	}
 
 	# We need mahout on all the nodes to run the HiBench demos
-	package { 'mahout': ensure => present }
-
-	/*
-	# We need zookeeper for some reason. I'm not really sure what it does
-	package { 'zookeeper':
-		ensure => present,
-		require => apt::Source['cloudera-apt'],
+	package { 'mahout':
+		ensure => present
 	}
-	*/
 }
 
 class my::hadoop::master inherits my::hadoop {
 	include cdh::hadoop::master
 
-	/*
-	include apt
+	# We don't want the master to also be a datanode
+	service { 'hadoop-hdfs-datanode':
+		ensure => stopped,
+	}
 
 	#########################################################
 	# The x2go server is needed for graphical remote login. #
 	#########################################################
-	apt::ppa { 'ppa:x2go/stable': }
+	/*
+	include apt
+	apt::ppa { 'ppa:x2go/stable':
+		ensure => present,
+		before => [Package['x2goserver'], Package['x2goserver-xsession']]
+	}
+	*/
+
 	package { 'x2goserver':
 		ensure => present,
-		before => File['/usr/sbin/x2gocleansessions']
 	}
 
 	# Makes sure the session cleaning only happens once every hour rather than once every two seconds. This reduces the resultant power spikes.
-	file { '/usr/sbin/x2gocleansessions'
-		source => 'puppet:///modules/josiah/x2gocleansessions'
+	file { '/usr/sbin/x2gocleansessions':
+		source => 'puppet:///modules/josiah/x2gocleansessions',
+		require => Package['x2goserver'],
 	}
 
 	package { 'x2goserver-xsession':
@@ -94,7 +94,7 @@ class my::hadoop::master inherits my::hadoop {
 		provider => git,
 		source => 'https://github.com/yanghaogn/HiBench-CDH5.git',
 		revision => 'master',
-		excludes => '/opt/HiBench-CDH5/bin/hibench-config.sh',
+		#excludes => '/opt/HiBench-CDH5/bin/hibench-config.sh',
 	}
 
 	# We need to make sure the configuration script is set up right.
@@ -110,7 +110,6 @@ class my::hadoop::master inherits my::hadoop {
 				'/opt/HiBench-CDH5/TestDFSIO/bin/run.sh',
 				'/opt/HiBench-CDH5/TestDFSIO/bin/write.sh',
 				'/opt/HiBench-CDH5/TestDFSIO/conf/configure.sh',
-				'/opt/HiBench-CDH5/bin/hibench-config.sh',
 				'/opt/HiBench-CDH5/bin/run-all.sh',
 				'/opt/HiBench-CDH5/conf/funcs.sh',
 				'/opt/HiBench-CDH5/dfsioe/bin/prepare-read.sh',
@@ -158,7 +157,6 @@ class my::hadoop::master inherits my::hadoop {
 	###############################################
 	package { 'ant':
 		ensure => present,
-		before => Vcsrepo['/opt/hipi']
 	}
 
 	vcsrepo { '/opt/hipi':
@@ -168,8 +166,6 @@ class my::hadoop::master inherits my::hadoop {
 		revision => 'release',
 		require => Package['ant'],
 	}
-	*/
-	package { 'ant': ensure => present, }
 }
 
 class my::hadoop::worker inherits my::hadoop {
