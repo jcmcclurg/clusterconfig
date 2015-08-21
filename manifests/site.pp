@@ -45,6 +45,7 @@ class my::hadoop inherits my::ubuntu {
 		namenode_hosts	 => ['jjpowerserver.jjcluster.net'],
 		datanode_mounts		=> ['/var/lib/hadoop/data/mount1'],
 		dfs_name_dir			=> '/var/lib/hadoop/name',
+		mapreduce_map_java_opts => '-Xmx2048m',
 	}
 
 	# We need mahout on all the nodes to run the HiBench demos
@@ -57,8 +58,16 @@ class my::hadoop::master inherits my::hadoop {
 	include cdh::hadoop::master
 
 	# We don't want the master to also be a datanode
+	file {'/etc/hadoop/conf/hosts.exclude':
+		ensure => file,
+		mode => 644,
+		content => "jjpowerserver.jjcluster.net\n",
+		require => Class['cdh::hadoop'],
+	}
+
 	service { 'hadoop-hdfs-datanode':
 		ensure => stopped,
+		require => Class['cdh::hadoop'],
 	}
 
 	#########################################################
@@ -94,7 +103,6 @@ class my::hadoop::master inherits my::hadoop {
 		provider => git,
 		source => 'https://github.com/yanghaogn/HiBench-CDH5.git',
 		revision => 'master',
-		#excludes => '/opt/HiBench-CDH5/bin/hibench-config.sh',
 	}
 
 	# We need to make sure the configuration script is set up right.
@@ -164,8 +172,17 @@ class my::hadoop::master inherits my::hadoop {
 		provider => git,
 		source => 'https://github.com/uvagfx/hipi.git',
 		revision => 'release',
-		require => Package['ant'],
+		require => [Package['ant'], Class['cdh::hadoop'] ],
 	}
+
+	# We need to make sure the configuration script is set up right.
+	file { '/opt/hipi/build.xml':
+		ensure => file,
+		source => 'puppet:///modules/josiah/build.xml',
+		mode => 644,
+		require => Vcsrepo['/opt/hipi'],
+	}
+
 }
 
 class my::hadoop::worker inherits my::hadoop {
