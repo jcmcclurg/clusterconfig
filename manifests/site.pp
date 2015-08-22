@@ -1,4 +1,5 @@
 class my::ubuntu {
+	# We need to make sure that the proper logging libraries are on the command line
 	file { '/etc/environment':
 		ensure => file,
 		source => 'puppet:///modules/josiah/environment',
@@ -46,6 +47,9 @@ class my::hadoop inherits my::ubuntu {
 }
 
 class my::hadoop::master inherits my::hadoop {
+	#############################################
+	# The hadoop master controls all the slaves #
+	#############################################
 	include cdh::hadoop::master
 
 	# We don't want the master to also be a datanode
@@ -88,6 +92,7 @@ class my::hadoop::master inherits my::hadoop {
 
 	# Makes sure the session cleaning only happens once every hour rather than once every two seconds. This reduces the resultant power spikes.
 	file { '/usr/sbin/x2gocleansessions':
+		ensure => file,
 		source => 'puppet:///modules/josiah/x2gocleansessions',
 		require => Package['x2goserver'],
 	}
@@ -139,6 +144,7 @@ class my::hadoop::master inherits my::hadoop {
 				'/opt/HiBench-CDH5/wordcount/bin/prepare.sh',
 				'/opt/HiBench-CDH5/wordcount/bin/run.sh',
 				'/opt/HiBench-CDH5/wordcount/conf/configure.sh']:
+		ensure => present,
 		mode => 755,
 		require => Vcsrepo['/opt/HiBench-CDH5'],
 	}
@@ -157,13 +163,24 @@ class my::hadoop::master inherits my::hadoop {
 	}
 
 	file { '/etc/dnsmasq.conf':
+		ensure => file,
 		source => 'puppet:///modules/josiah/dnsmasq.conf',
-		mode => 644
+		mode => 644,
 	}
 
 	file { '/etc/hosts':
+		ensure => file,
 		source => 'puppet:///modules/josiah/hosts',
-		mode => 644
+		mode => 644,
+	}
+
+	#############################################################################################
+	# It's really annoying to have the server wait two minutes to start if the network isn't up #
+	#############################################################################################
+	file { '/etc/init/failsafe.conf':
+		ensure => file,
+		source => 'puppet:///modules/josiah/failsafe.conf',
+		mode => 644,
 	}
 
 	###############################################
