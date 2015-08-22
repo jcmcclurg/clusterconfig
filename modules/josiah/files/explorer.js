@@ -115,7 +115,6 @@
       $('#file-info-title').text("File information - " + path);
 
       var download_url = '/webhdfs/v1' + abs_path + '?user.name=hdfs&op=OPEN';
-	   download_url = download_url.replace('&','?');
 
       $('#file-info-download').attr('href', download_url);
       $('#file-info-preview').click(function() {
@@ -139,7 +138,6 @@
 
   function browse_directory(dir) {
     var url = '/webhdfs/v1' + dir + '?user.name=hdfs&op=LISTSTATUS';
-	 url = url.replace('&','?');
     $.get(url, function(data) {
       var d = get_response(data, "FileStatuses");
       if (d === null) {
