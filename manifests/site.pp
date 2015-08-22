@@ -1,16 +1,4 @@
 class my::ubuntu {
-	/*
-	package { 'isc-dhcp-client':
-		ensure => present,
-	}
-
-	file { '/etc/dhcp/dhclient.conf':
-		ensure => file,
-		source => 'puppet:///modules/josiah/dhclient.conf',
-		require => Package['isc-dhcp-client'],
-	}
-	*/
-
 	file { '/etc/environment':
 		ensure => file,
 		source => 'puppet:///modules/josiah/environment',
