@@ -11,3 +11,4 @@ ff02::2 ip6-allrouters
 192.168.1.102 jjpowerserver2.jjcluster.net jjpowerserver2
 192.168.1.103 jjpowerserver3.jjcluster.net jjpowerserver3
 192.168.1.104 jjpowerserver4.jjcluster.net jjpowerserver4
+192.168.1.200 Brian-PC.jjcluster.net Brian-PC

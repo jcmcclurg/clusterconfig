@@ -1,4 +1,5 @@
 class my::ubuntu {
+	/*
 	package { 'isc-dhcp-client':
 		ensure => present,
 	}
@@ -8,6 +9,7 @@ class my::ubuntu {
 		source => 'puppet:///modules/josiah/dhclient.conf',
 		require => Package['isc-dhcp-client'],
 	}
+	*/
 
 	file { '/etc/environment':
 		ensure => file,
@@ -46,6 +48,7 @@ class my::hadoop inherits my::ubuntu {
 		datanode_mounts		=> ['/var/lib/hadoop/data/mount1'],
 		dfs_name_dir			=> '/var/lib/hadoop/name',
 		mapreduce_map_java_opts => '-Xmx2048m',
+		webhdfs_enabled => true,
 	}
 
 	# We need mahout on all the nodes to run the HiBench demos
@@ -70,9 +73,19 @@ class my::hadoop::master inherits my::hadoop {
 		require => Class['cdh::hadoop'],
 	}
 
+	# We want to be able to use the web interface for the hdfs user (the javascript needed some modification)
+	file {'/usr/lib/hadoop-hdfs/webapps/hdfs/explorer.js':
+		ensure => file,
+		mode => 644,
+		source => "puppet:///modules/josiah/explorer.js",
+		require => Class['cdh::hadoop'],
+	}
+
 	#########################################################
 	# The x2go server is needed for graphical remote login. #
 	#########################################################
+
+	# Uncomment this section to make sure the x2go ppa is added.
 	/*
 	include apt
 	apt::ppa { 'ppa:x2go/stable':
@@ -148,6 +161,11 @@ class my::hadoop::master inherits my::hadoop {
 	package { 'dnsmasq':
 		ensure => present,
 		before => File['/etc/dnsmasq.conf'],
+	}
+
+	service { 'dnsmasq':
+		ensure => running,
+		require => File['/etc/dnsmasq.conf'],
 	}
 
 	file { '/etc/dnsmasq.conf':
