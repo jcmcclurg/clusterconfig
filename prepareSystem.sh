@@ -2,7 +2,10 @@ echo "Installing puppet"
 sudo apt-get -y install puppet
 
 echo "Installing cdh module"
-sudo git clone git://github.com/wikimedia/puppet-cdh.git /etc/puppet/modules/cdh
+sudo git clone https://github.com/wikimedia/puppet-cdh.git /etc/puppet/modules/cdh
+
+echo "Installing l23network module"
+sudo git clone https://github.com/xenolog/l23network.git /etc/puppet/modules/l23network
 
 #modules="puppetlabs-apt puppetlabs-stdlib puppetlabs-vcsrepo puppetlabs-mysql puppetlabs-postgresql stahnma-epel puppetlabs-java_ks darin-zypprepo herculesteam-augeasproviders_sysctl razorsedge-cloudera"
 
