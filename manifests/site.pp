@@ -13,13 +13,13 @@ class my::ubuntu {
 	}
 
 	# There's no need to have window managers running. You can start these manually if you need them.
-	service {'lxdm':
-		ensure => stopped,
-	}
+	#service {'lxdm':
+	#	ensure => stopped,
+	#}
 
-	service {'lightdm':
-		ensure => stopped,
-	}
+	#service {'lightdm':
+	#	ensure => stopped,
+	#}
 
 	#########################################################
 	# The x2go server is needed for graphical remote login. #
@@ -53,9 +53,15 @@ class my::ubuntu {
 
 
 class my::hadoop inherits my::ubuntu {
-	include apt
+
+	#################################################################
+	# The josiah module provides the get_hadoop_parameters function #
+	#################################################################
+	include josiah
+	$params = $josiah::params
 
 	# We need Cloudera's repositories to be installed before we can use the cdh::hadoop module
+	include apt
 	apt::source { 'cloudera-apt':
 		comment => "Cloudera's distribution for Hadoop",
 		architecture => 'amd64',
@@ -79,12 +85,19 @@ class my::hadoop inherits my::ubuntu {
 		cluster_name	   => 'josiah_cluster',
 		# Must pass an array of hosts here, even if you are
 		# not using HA and only have a single NameNode.
-		namenode_hosts	 => ['jjpowerserver.jjcluster.net'],
-		datanode_mounts		=> ['/var/lib/hadoop/data/mount1'],
-		dfs_name_dir			=> '/var/lib/hadoop/name',
-		yarn_nodemanager_resource_cpu_vcores => $processorcount,
-		mapreduce_map_java_opts => '-Xmx2048m',
-		webhdfs_enabled => true,
+		namenode_hosts                       => ['jjpowerserver.jjcluster.net'],
+		datanode_mounts                      => ['/var/lib/hadoop/data/mount1'],
+		dfs_name_dir                         => '/var/lib/hadoop/name',
+		#yarn_nodemanager_resource_cpu_vcores => $processorcount,
+		yarn_nodemanager_resource_cpu_vcores => $params['yarn_nodemanager_resource_cpu_vcores'],
+		yarn_nodemanager_resource_memory_mb  => $params['yarn_nodemanager_resource_memory'],
+		yarn_scheduler_minimum_allocation_mb => $params['yarn_scheduler_minimum_allocation'],
+		yarn_scheduler_maximum_allocation_mb => $params['yarn_scheduler_maximum_allocation'],
+		mapreduce_map_memory_mb              => $params['mapreduce_map_memory_mb'],
+		mapreduce_reduce_memory_mb           => $params['mapreduce_reduce_memory_mb'],
+		mapreduce_map_java_opts              => $params['mapreduce_map_java_opts'],
+		mapreduce_reduce_java_opts           => $params['mapreduce_reduce_java_opts'],
+		webhdfs_enabled                      => true,
 	}
 
 	# We want to be able to use the web interface for the hdfs user (the javascript needed some modification)
