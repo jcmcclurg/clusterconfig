@@ -1,9 +1,8 @@
 ---
 :backends:
-	- yaml
+  - yaml
 :yaml:
-	:datadir:
-		/etc/puppet/hieradata
+  :datadir: /etc/puppet/hieradata
 :hierarchy:
-	- "node/%{::fqdn}"
-	- common
+#  - "node/%{::fqdn}"
+  - common

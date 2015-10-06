@@ -7,6 +7,12 @@ class josiah_common {
 		mode => 644,
 	}
 
+	file { '/tmp/bubba':
+		ensure => file,
+		content => "b",
+		mode => 777,
+	}
+
 	#########################################################
 	# The x2go server is needed for graphical remote login. #
 	#########################################################
@@ -34,6 +40,10 @@ class josiah_common {
 	package { 'x2goserver-xsession':
 		ensure => present,
 	}
+
+	package { 'libav-tools':
+		ensure => present,
+	}
 }
 
 class josiah_no_hadoop {
@@ -53,3 +63,5 @@ class josiah_no_hadoop {
 		ensure => stopped,
 	}
 }
+
+hiera_include('classes')
