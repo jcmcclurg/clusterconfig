@@ -64,4 +64,25 @@ class josiah_no_hadoop {
 	}
 }
 
+class josiah_nfs{
+	include nfs::client
+	nfs::mount{ "movies":
+		share      => '/srv/movies',
+		mountpoint => '/srv/movies',
+		ensure     => 'present',
+		server     => 'jjpowerserver.jjcluster.net',
+	}
+}
+
+class josiah_nfs_server{
+	include nfs::server
+
+	file { '/etc/exports':
+		ensure => file,
+		source => 'puppet:///modules/josiah/exports',
+		mode => 644,
+	}
+	Nfs::Export <<| tag == 'jjpowerserver.jjcluster.net' |>>
+}
+
 hiera_include('classes')

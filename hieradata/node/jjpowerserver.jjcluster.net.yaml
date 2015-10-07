@@ -1,2 +1,2 @@
 ---
-classes: josiah_hadoop::master
+classes: josiah_nfs_server
