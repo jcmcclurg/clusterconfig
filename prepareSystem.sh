@@ -9,7 +9,7 @@ sudo git clone https://github.com/xenolog/l23network.git /etc/puppet/modules/l23
 
 #modules="puppetlabs-apt puppetlabs-stdlib puppetlabs-vcsrepo puppetlabs-mysql puppetlabs-postgresql stahnma-epel puppetlabs-java_ks darin-zypprepo herculesteam-augeasproviders_sysctl razorsedge-cloudera"
 
-modules="puppetlabs-apt puppetlabs-stdlib puppetlabs-vcsrepo"
+modules="puppetlabs-apt puppetlabs-stdlib puppetlabs-vcsrepo camptocamp-nfs"
 
 for m as $modules; do
 	echo "Installing $m module"
